@@ -1,0 +1,139 @@
+package socket_program;
+import java.io.*;
+import java.net.*;
+import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public class CalcThreadServer {
+    // 프로토콜 메시지 목록 정의
+    private static final List<String> PROTOCOLS = new ArrayList<>() {
+        {
+            add("add"); // 덧셈 프로토콜
+            add("sub"); // 뺄셈 프로토콜
+            add("mul"); // 곱셈 프로토콜
+            add("div"); // 나눗셈 프로토콜
+        }
+    };
+
+    public static void main(String[] args) throws IOException {
+        Scanner scanner;
+        int portNum = 7777;
+        ServerSocket listener;
+
+        // 서버 정보를 저장한 파일 읽기
+        try {
+            scanner = new Scanner(new FileInputStream("./server_info.dat"));
+            portNum = scanner.nextInt();
+            scanner.close();
+        } catch (FileNotFoundException e) {
+            System.out.println("No file to read.");//파일이 없는 경우 또는 파일을 읽을 수 없는 경우
+        }
+
+        listener = new ServerSocket(portNum);
+        System.out.println("The Calculator server is running...");
+        ExecutorService pool = Executors.newFixedThreadPool(20);//최대 thread 20개
+
+        while (true) {//멀티 thread
+            Socket sock = listener.accept();
+            pool.execute(new Calculator(sock));
+        }
+    }
+
+    private static String calculate(String packet) {
+        String result = "";
+        StringTokenizer stringTokenizer = new StringTokenizer(packet);
+        String operator = stringTokenizer.nextToken();
+
+        if (!PROTOCOLS.contains(operator)) {
+            result = result + "FAIL Invalid_Requests"; // Error: 잘못된 요청
+        } else {
+            List<Integer> request = new ArrayList<>();
+            try {
+                while (stringTokenizer.hasMoreTokens()) {
+                    request.add(Integer.parseInt(stringTokenizer.nextToken()));
+                }
+            } catch (NumberFormatException e1) {
+                result = "FAIL Non-numeric_Values"; // Error: 숫자가 아닌 값
+                return result;
+            }
+            if(request.size() == 1){
+                result = "FAIL Insufficient_Arguments";// Error: 충분 하지 않은 인수(부족)
+                return result;
+            }
+            switch (operator) {
+                case "add"://더하기
+                    int sum = 0;
+                    for (int i : request) {
+                        sum += i;
+                    }
+                    result = result + "SUCCESS " + sum; // 덧셈 결과 반환
+                    break;
+                case "sub":
+                    if (request.size() > 2) {
+                        result = result + "FAIL Too_Many_Arguments"; // Error: 잘못된 인수(많음)
+                        break;
+                    }
+                    result = result + "SUCCESS " + (request.get(0) - request.get(1)); // 뺄셈 결과 반환
+                    break;
+                case "mul":
+                    int product = 1;
+                    for (int i : request) {
+                        product *= i;
+                    }
+                    result = result + "SUCCESS " + product; // 곱셈 결과 반환
+                    break;
+                case "div":
+                    if (request.size() != 2) {
+                        result = result + "FAIL Too_Many_Arguments"; // Error: 잘못된 인수(많음)
+                        break;
+                    } else if (request.get(1) == 0) {
+                        result = result + "FAIL Not_Possible_To_Divide_By_Zero"; // Error: 0으로 나누는 경우
+                        break;
+                    }
+                    result = result + "SUCCESS " + (request.get(0) / request.get(1)); // 나눗셈 결과 반환
+                    break;
+                default:
+                    result = result + "FAIL Other_Error"; // Error: 그 외 오류
+            }
+        }
+        return result;
+    }
+
+    private static class Calculator implements Runnable {
+        private Socket socket;
+
+        Calculator(Socket socket) {
+            this.socket = socket;
+        }
+
+        @Override
+        public void run() {
+            System.out.println("CONNECTED: " + socket);
+            try {
+                Scanner in = new Scanner(socket.getInputStream());
+                PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+
+                while (true) {
+                    String packet = in.nextLine();
+                    if (packet.equals("bye")) {
+                        System.out.println("FINISH CALCULATOR.");
+                        break;
+                    }
+                    String result = calculate(packet);
+                    out.println(result);
+                    out.flush();
+                }
+            } catch (Exception e) {
+                System.out.println("ERROR:" + socket);
+            } finally {
+                try {
+                    socket.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                System.out.println("CLOSED: " + socket);
+            }
+        }
+    }
+}
