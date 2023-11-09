@@ -1,0 +1,58 @@
+package socket_program;
+
+import java.io.*;
+import java.net.Socket;
+import java.util.Scanner;
+import java.util.StringTokenizer;
+
+public class CalcThreadClient {
+    public static void main(String[] args) throws Exception {
+        Scanner fileScanner;
+        int portNum = 7777;//기본 port number 지정
+        String ip = "localhost";//기본 ip 주소 설정
+
+        try {
+            fileScanner = new Scanner(new FileInputStream("./server_info.dat"));
+            portNum = fileScanner.nextInt();//port number 받기
+            ip = fileScanner.nextLine();//ip 주소 받기
+            fileScanner.close();
+        } catch (FileNotFoundException e) {//파일이 없는 경우 또는 파일을 읽을 수 없는 경우
+            System.out.println("No file to read.");
+        }
+
+        Socket socket = new Socket(ip, portNum);
+        Scanner scanner = new Scanner(System.in);
+        BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+        PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+
+        while (true) {
+            System.out.println("계산식을 입력하세요(예: add 10 20 30)/종료하려면 bye를 입력하세요 >> ");
+            String outputMessage = scanner.nextLine(); // 키보드에서 수식 입력
+
+            if (outputMessage.equalsIgnoreCase("bye")) {
+                out.write(outputMessage.toUpperCase() + "\n"); // "bye" 문자열 전송
+                out.flush();
+                break; // 사용자가 "bye"를 입력하면 서버로 전송 후 연결 종료
+            }
+            out.write(outputMessage.toLowerCase() + "\n"); // 키보드에서 읽은 수식 문자열 소문자로 전송
+            out.flush();
+
+            String inputMessage = in.readLine(); // 서버로부터 계산 결과 받기
+            StringTokenizer stringTokenizer = new StringTokenizer(inputMessage);
+            String responseType = stringTokenizer.nextToken();
+            String answer = stringTokenizer.nextToken();
+
+            if (responseType.equals("FAIL")) {//실패했다면
+                System.out.println("Error Message\n" + answer);//에러가 난 이유: 서버에 적혀있는 문자열 출력
+            } else {
+                System.out.println(outputMessage + " -> result: " + answer);//정상 작동
+            }
+        }
+
+        try {
+            socket.close();
+        } catch (IOException e1) {
+            e1.printStackTrace();
+        }
+    }
+}
