@@ -1,2 +1,2 @@
 # Calculators
-Caculator in the cloud
+A cloud-based calculator with Java
